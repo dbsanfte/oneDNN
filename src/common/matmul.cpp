@@ -348,7 +348,7 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         const auto &po = attr->post_ops_;
         using namespace primitive_kind;
         VCHECK_MATMUL_UNIMPL(
-                po.has_default_values({binary, eltwise, prelu, sum}),
+                po.has_default_values({binary, eltwise, prelu, sum, softmax}),
                 VERBOSE_UNSUPPORTED_POSTOP);
 
         // Check sum

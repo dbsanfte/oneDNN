@@ -33,6 +33,7 @@
 
 #include "cpu/binary_injector_utils.hpp"
 #include "cpu/matmul/gemm_bf16_matmul.hpp"
+#include "cpu/matmul/gemm_softmax_utils.hpp"
 #include "cpu/matmul/matmul_utils.hpp"
 #include "cpu/scale_utils.hpp"
 
@@ -116,7 +117,27 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes(
 
     auto check_attr_post_ops = [&]() -> bool {
         using namespace primitive_kind;
-        const auto &post_ops = attr()->post_ops_;
+        primitive_attr_t sanitized_attr;
+        if (sanitized_attr.copy_from(*attr()) != status::success) return false;
+
+        auto &sanitized_post_ops = sanitized_attr.post_ops_;
+        const int softmax_idx
+                = sanitized_post_ops.find(primitive_kind::softmax);
+        if (softmax_idx != -1) {
+            const int ndims = dst_md()->ndims;
+            const auto &softmax_desc
+                    = sanitized_post_ops.entry_[softmax_idx].softmax;
+            int axis = softmax_desc.axis;
+            if (axis < 0) axis += ndims;
+            if (axis != ndims - 1) return false;
+            if (sanitized_post_ops.find(
+                        primitive_kind::softmax, softmax_idx + 1)
+                    != -1)
+                return false;
+            sanitized_post_ops.entry_.erase(
+                    sanitized_post_ops.entry_.begin() + softmax_idx);
+        }
+
         static const bcast_set_t enabled_bcast_strategy {
                 broadcasting_strategy_t::scalar,
                 broadcasting_strategy_t::per_oc,
@@ -128,11 +149,11 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes(
         const bool is_binary_po_per_oc
                 = binary_injector_utils::bcast_strategy_present(
                         binary_injector_utils::extract_bcast_strategies(
-                                post_ops.entry_, dst_md()),
+                                sanitized_post_ops.entry_, dst_md()),
                         broadcasting_strategy_t::per_oc);
-        const bool has_prelu = post_ops.find(prelu) != -1;
+        const bool has_prelu = sanitized_post_ops.find(prelu) != -1;
         return cpu::inner_product_utils::post_ops_ok(
-                       post_ops, dst_md(), enabled_bcast_strategy)
+                       sanitized_post_ops, dst_md(), enabled_bcast_strategy)
                 && IMPLICATION(is_binary_po_per_oc,
                         gemm_based::check_gemm_binary_per_oc_compatible_formats(
                                 *this))
@@ -144,6 +165,22 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes(
 
     // set state
     CHECK(params_.pp_attr_.copy_from(*attr()));
+
+    auto &post_ops = params_.pp_attr_.post_ops_;
+    const int softmax_po_index = post_ops.find(primitive_kind::softmax);
+    if (softmax_po_index != -1) {
+        const int ndims = dst_md()->ndims;
+        const auto &softmax_desc = post_ops.entry_[softmax_po_index].softmax;
+        int axis = softmax_desc.axis;
+        if (axis < 0) axis += ndims;
+        if (axis != ndims - 1) return status::unimplemented;
+        if (post_ops.find(primitive_kind::softmax, softmax_po_index + 1) != -1)
+            return status::unimplemented;
+        params_.has_softmax_post_op_ = true;
+        params_.softmax_axis_ = axis;
+        params_.softmax_log_ = softmax_desc.log;
+        post_ops.entry_.erase(post_ops.entry_.begin() + softmax_po_index);
+    }
 
     bool apply_wei_scales_in_pp_kernel = false;
     if (!attr()->scales_.has_default_values(DNNL_ARG_WEIGHTS))
@@ -254,7 +291,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     acc_data_t *acc = dst_is_acc
             ? (acc_data_t *)dst
             : ctx.get_scratchpad_grantor().template get<acc_data_t>(
-                    memory_tracking::names::key_matmul_dst_in_acc_dt);
+                      memory_tracking::names::key_matmul_dst_in_acc_dt);
     // case: dynamic sizes
     bool need_free_acc = false;
     if (acc == nullptr) {
@@ -355,7 +392,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                     const size_t dst_logical_off = i_work;
                     const size_t dim1_off = helper.ndims() > 3
                             ? ((cur_b % batch_without_dim0)
-                                    / batch_without_dim01)
+                                      / batch_without_dim01)
                             : cur_m;
                     // offset for case with post-op broadcast_channel
                     const size_t matrix_per_first_batch_off = helper.ndims() > 3
@@ -399,6 +436,12 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     }
 
     if (need_free_acc) free(acc);
+
+    if (st == status::success && params.has_softmax_post_op_) {
+        status_t softmax_status
+                = softmax_utils::apply_softmax_post_op(dst, dst_d, params);
+        if (softmax_status != status::success) return softmax_status;
+    }
 
     return st;
 }
