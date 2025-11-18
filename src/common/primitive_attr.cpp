@@ -291,6 +291,21 @@ status_t post_ops_t::append_prelu(int mask) {
     return success;
 }
 
+status_t post_ops_t::append_softmax(int axis, bool log) {
+    if (len() == post_ops_limit) return out_of_memory;
+    VCHECK_ATTR(axis > -DNNL_MAX_NDIMS && axis < DNNL_MAX_NDIMS,
+            VERBOSE_BAD_PARAM, "axis");
+
+    entry_.emplace_back();
+    auto &e = entry_.back();
+    e.kind = primitive_kind::softmax;
+    e.softmax.axis = axis;
+    e.softmax.flags = 0;
+    e.softmax.log = log;
+
+    return success;
+}
+
 status_t post_ops_t::set_default_formats(const memory_desc_t *dst_md) {
     for (int idx = 0; idx < len(); ++idx) {
         if (!contain(primitive_kind::binary, idx)) continue;
@@ -868,6 +883,23 @@ status_t dnnl_post_ops_get_params_prelu(
 
     const auto &prelu_entry = post_ops->entry_[index].prelu;
     if (mask) *mask = prelu_entry.mask;
+
+    return success;
+}
+
+status_t dnnl_post_ops_append_softmax(
+        post_ops_t *post_ops, int axis, int is_log) {
+    if (post_ops == nullptr) return invalid_arguments;
+    return post_ops->append_softmax(axis, is_log != 0);
+}
+
+status_t dnnl_post_ops_get_params_softmax(
+        const post_ops_t *post_ops, int index, int *axis, int *is_log) {
+    CHECK(simple_get_params_check(post_ops, index, primitive_kind::softmax));
+
+    const auto &softmax_entry = post_ops->entry_[index].softmax;
+    if (axis) *axis = softmax_entry.axis;
+    if (is_log) *is_log = softmax_entry.log ? 1 : 0;
 
     return success;
 }

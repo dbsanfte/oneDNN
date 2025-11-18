@@ -39,8 +39,8 @@ struct ref_pp_kernel_t : public pp_kernel_t {
     ref_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
             const primitive_attr_t *attr, data_type_t bias_dt,
             data_type_t acc_dt, const memory_desc_t *dst_md, bool skip_sum)
-        : pp_kernel_t(
-                OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, skip_sum)
+        : pp_kernel_t(OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md,
+                  skip_sum)
         , dst_md_(dst_md)
         , skip_sum_(skip_sum)
         , do_postops_(this->do_sum_ || this->do_eltwise_ || this->do_binary_
@@ -252,8 +252,16 @@ bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
         const auto &post_op = post_ops.entry_[i];
         const bool sum_postop_present = post_op.is_sum(false);
         if (sum_postop_present && i > 0) return false;
+        const bool softmax_postop_present = post_op.is_softmax();
+        if (softmax_postop_present) {
+            if (i != post_ops.entry_.size() - 1) return false;
+            const int normalized_axis = post_op.softmax.axis < 0
+                    ? post_op.softmax.axis + dst_d->ndims()
+                    : post_op.softmax.axis;
+            if (normalized_axis != dst_d->ndims() - 1) return false;
+        }
         if (!(sum_postop_present || post_op.is_eltwise() || post_op.is_binary()
-                    || post_op.is_prelu()))
+                    || post_op.is_prelu() || softmax_postop_present))
             return false;
     }
     return true;

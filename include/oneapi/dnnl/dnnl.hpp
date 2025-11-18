@@ -3261,7 +3261,7 @@ struct memory : public handle<dnnl_memory_t> {
                     get(), dnnl_query_sparse_encoding, 0, &sparse_encoding);
             return status == dnnl_success
                     ? static_cast<dnnl::memory::sparse_encoding>(
-                            sparse_encoding)
+                              sparse_encoding)
                     : dnnl::memory::sparse_encoding::undef;
         }
 
@@ -4025,6 +4025,31 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     void get_params_prelu(int index, int &mask) const {
         error::wrap_c_api(dnnl_post_ops_get_params_prelu(get(), index, &mask),
                 "could not get parameters of a binary post-op");
+    }
+
+    /// Appends a softmax post-op.
+    ///
+    /// The kind of this post-op is #dnnl::primitive::kind::softmax.
+    ///
+    /// @param axis Axis along which softmax is evaluated.
+    /// @param is_log True to compute log-softmax.
+    void append_softmax(int axis, bool is_log = false) {
+        error::wrap_c_api(
+                dnnl_post_ops_append_softmax(get(), axis, is_log ? 1 : 0),
+                "could not append a softmax post-op");
+    }
+
+    /// Returns the parameters of a softmax post-op.
+    ///
+    /// @param index Index of the softmax post-op.
+    /// @param axis Output axis used for softmax computation.
+    /// @param is_log Output flag that is true when log-softmax is requested.
+    void get_params_softmax(int index, int &axis, bool &is_log) const {
+        int raw_is_log = 0;
+        error::wrap_c_api(dnnl_post_ops_get_params_softmax(
+                                  get(), index, &axis, &raw_is_log),
+                "could not get parameters of a softmax post-op");
+        is_log = raw_is_log != 0;
     }
 };
 
@@ -5663,8 +5688,8 @@ struct convolution_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
-                    weights_desc, &bias_desc, dst_desc, strides, nullptr,
-                    padding_l, padding_r, attr, allow_empty) {}
+                      weights_desc, &bias_desc, dst_desc, strides, nullptr,
+                      padding_l, padding_r, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution forward
         ///     propagation primitive without bias.
@@ -5709,8 +5734,8 @@ struct convolution_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
-                    weights_desc, nullptr, dst_desc, strides, nullptr,
-                    padding_l, padding_r, attr, allow_empty) {}
+                      weights_desc, nullptr, dst_desc, strides, nullptr,
+                      padding_l, padding_r, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution forward
         ///     propagation primitive with bias.
@@ -5760,8 +5785,8 @@ struct convolution_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
-                    weights_desc, &bias_desc, dst_desc, strides, &dilates,
-                    padding_l, padding_r, attr, allow_empty) {}
+                      weights_desc, &bias_desc, dst_desc, strides, &dilates,
+                      padding_l, padding_r, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution forward
         ///     propagation primitive without bias.
@@ -5808,8 +5833,8 @@ struct convolution_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
-                    weights_desc, nullptr, dst_desc, strides, &dilates,
-                    padding_l, padding_r, attr, allow_empty) {}
+                      weights_desc, nullptr, dst_desc, strides, &dilates,
+                      padding_l, padding_r, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution forward
         /// propagation primitive from a C API primitive descriptor that must
@@ -5819,8 +5844,8 @@ struct convolution_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::convolution,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -5958,8 +5983,8 @@ struct convolution_backward_data : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, diff_src_desc, weights_desc,
-                    diff_dst_desc, strides, nullptr, padding_l, padding_r,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      diff_dst_desc, strides, nullptr, padding_l, padding_r,
+                      hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution backward
         ///     propagation primitive.
@@ -6008,8 +6033,8 @@ struct convolution_backward_data : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, diff_src_desc, weights_desc,
-                    diff_dst_desc, strides, &dilates, padding_l, padding_r,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      diff_dst_desc, strides, &dilates, padding_l, padding_r,
+                      hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution backward
         /// propagation primitive from a C API primitive descriptor that must
@@ -6019,7 +6044,7 @@ struct convolution_backward_data : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::convolution,
-                    dnnl::prop_kind::backward_data) {}
+                      dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::diff_src_desc()const
         memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
@@ -6155,8 +6180,8 @@ struct convolution_backward_weights : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
-                    &diff_bias_desc, diff_dst_desc, strides, nullptr, padding_l,
-                    padding_r, hint_fwd_pd, attr, allow_empty) {}
+                      &diff_bias_desc, diff_dst_desc, strides, nullptr,
+                      padding_l, padding_r, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution weights gradient
         ///     primitive without bias.
@@ -6202,8 +6227,8 @@ struct convolution_backward_weights : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
-                    nullptr, diff_dst_desc, strides, nullptr, padding_l,
-                    padding_r, hint_fwd_pd, attr, allow_empty) {}
+                      nullptr, diff_dst_desc, strides, nullptr, padding_l,
+                      padding_r, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution weights
         ///     gradient primitive with bias.
@@ -6255,8 +6280,8 @@ struct convolution_backward_weights : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
-                    &diff_bias_desc, diff_dst_desc, strides, &dilates,
-                    padding_l, padding_r, hint_fwd_pd, attr, allow_empty) {}
+                      &diff_bias_desc, diff_dst_desc, strides, &dilates,
+                      padding_l, padding_r, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution weights
         ///     gradient primitive without bias.
@@ -6305,8 +6330,8 @@ struct convolution_backward_weights : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
-                    nullptr, diff_dst_desc, strides, &dilates, padding_l,
-                    padding_r, hint_fwd_pd, attr, allow_empty) {}
+                      nullptr, diff_dst_desc, strides, &dilates, padding_l,
+                      padding_r, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a convolution weights gradient
         /// primitive from a C API primitive descriptor that must have a
@@ -6316,7 +6341,7 @@ struct convolution_backward_weights : public primitive {
         ///     gradient primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::convolution,
-                    dnnl::prop_kind::backward_weights) {}
+                      dnnl::prop_kind::backward_weights) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -6469,8 +6494,8 @@ struct deconvolution_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
-                    weights_desc, &bias_desc, dst_desc, strides, nullptr,
-                    padding_l, padding_r, attr, allow_empty) {}
+                      weights_desc, &bias_desc, dst_desc, strides, nullptr,
+                      padding_l, padding_r, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution forward
         ///     propagation primitive without bias.
@@ -6514,8 +6539,8 @@ struct deconvolution_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
-                    weights_desc, nullptr, dst_desc, strides, nullptr,
-                    padding_l, padding_r, attr, allow_empty) {}
+                      weights_desc, nullptr, dst_desc, strides, nullptr,
+                      padding_l, padding_r, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution forward
         ///     propagation primitive with bias.
@@ -6564,8 +6589,8 @@ struct deconvolution_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
-                    weights_desc, &bias_desc, dst_desc, strides, &dilates,
-                    padding_l, padding_r, attr, allow_empty) {}
+                      weights_desc, &bias_desc, dst_desc, strides, &dilates,
+                      padding_l, padding_r, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution forward
         ///     propagation primitive without bias.
@@ -6611,8 +6636,8 @@ struct deconvolution_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
-                    weights_desc, nullptr, dst_desc, strides, &dilates,
-                    padding_l, padding_r, attr, allow_empty) {}
+                      weights_desc, nullptr, dst_desc, strides, &dilates,
+                      padding_l, padding_r, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution forward
         /// propagation primitive from a C API primitive descriptor that must
@@ -6622,8 +6647,8 @@ struct deconvolution_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::deconvolution,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -6757,8 +6782,8 @@ struct deconvolution_backward_data : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, diff_src_desc, weights_desc,
-                    diff_dst_desc, strides, nullptr, padding_l, padding_r,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      diff_dst_desc, strides, nullptr, padding_l, padding_r,
+                      hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution backward
         ///     propagation primitive.
@@ -6806,8 +6831,8 @@ struct deconvolution_backward_data : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, diff_src_desc, weights_desc,
-                    diff_dst_desc, strides, &dilates, padding_l, padding_r,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      diff_dst_desc, strides, &dilates, padding_l, padding_r,
+                      hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution backward
         /// propagation primitive from a C API primitive descriptor that must
@@ -6817,7 +6842,7 @@ struct deconvolution_backward_data : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::deconvolution,
-                    dnnl::prop_kind::backward_data) {}
+                      dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::diff_src_desc()const
         memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
@@ -6952,8 +6977,8 @@ struct deconvolution_backward_weights : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
-                    &diff_bias_desc, diff_dst_desc, strides, nullptr, padding_l,
-                    padding_r, hint_fwd_pd, attr, allow_empty) {}
+                      &diff_bias_desc, diff_dst_desc, strides, nullptr,
+                      padding_l, padding_r, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution weights
         ///     gradient primitive without bias.
@@ -6998,8 +7023,8 @@ struct deconvolution_backward_weights : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
-                    nullptr, diff_dst_desc, strides, nullptr, padding_l,
-                    padding_r, hint_fwd_pd, attr, allow_empty) {}
+                      nullptr, diff_dst_desc, strides, nullptr, padding_l,
+                      padding_r, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution weights
         ///     gradient primitive with bias.
@@ -7050,8 +7075,8 @@ struct deconvolution_backward_weights : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
-                    &diff_bias_desc, diff_dst_desc, strides, &dilates,
-                    padding_l, padding_r, hint_fwd_pd, attr, allow_empty) {}
+                      &diff_bias_desc, diff_dst_desc, strides, &dilates,
+                      padding_l, padding_r, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution weights
         ///     gradient primitive without bias.
@@ -7099,8 +7124,8 @@ struct deconvolution_backward_weights : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, src_desc, diff_weights_desc,
-                    nullptr, diff_dst_desc, strides, &dilates, padding_l,
-                    padding_r, hint_fwd_pd, attr, allow_empty) {}
+                      nullptr, diff_dst_desc, strides, &dilates, padding_l,
+                      padding_r, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a deconvolution weights
         /// gradient primitive from a C API primitive descriptor that must
@@ -7110,7 +7135,7 @@ struct deconvolution_backward_weights : public primitive {
         ///     gradient primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::deconvolution,
-                    dnnl::prop_kind::backward_weights) {}
+                      dnnl::prop_kind::backward_weights) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -7270,8 +7295,8 @@ struct lrn_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::lrn,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -7379,7 +7404,7 @@ struct lrn_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::lrn,
-                    dnnl::prop_kind::backward_data) {}
+                      dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
@@ -7478,7 +7503,7 @@ struct eltwise_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
-                    dst_desc, nullptr, nullptr, attr, allow_empty) {}
+                      dst_desc, nullptr, nullptr, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an elementwise forward
         ///     propagation primitive with an alpha parameter.
@@ -7504,7 +7529,7 @@ struct eltwise_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
-                    dst_desc, &alpha, nullptr, attr, allow_empty) {}
+                      dst_desc, &alpha, nullptr, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an elementwise forward
         ///     propagation primitive with an alpha and beta parameters.
@@ -7532,7 +7557,7 @@ struct eltwise_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, src_desc,
-                    dst_desc, &alpha, &beta, attr, allow_empty) {}
+                      dst_desc, &alpha, &beta, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an eltwise forward
         /// propagation primitive from a C API primitive descriptor that must
@@ -7542,8 +7567,8 @@ struct eltwise_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::eltwise,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -7639,8 +7664,8 @@ struct eltwise_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, diff_src_desc, diff_dst_desc,
-                    data_desc, nullptr, nullptr, hint_fwd_pd, attr,
-                    allow_empty) {}
+                      data_desc, nullptr, nullptr, hint_fwd_pd, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for an elementwise backward
         ///     propagation primitive with an alpha parameter.
@@ -7672,8 +7697,8 @@ struct eltwise_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, diff_src_desc, diff_dst_desc,
-                    data_desc, &alpha, nullptr, hint_fwd_pd, attr,
-                    allow_empty) {}
+                      data_desc, &alpha, nullptr, hint_fwd_pd, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for an elementwise backward
         ///     propagation primitive with an alpha and beta parameters.
@@ -7707,7 +7732,8 @@ struct eltwise_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, diff_src_desc, diff_dst_desc,
-                    data_desc, &alpha, &beta, hint_fwd_pd, attr, allow_empty) {}
+                      data_desc, &alpha, &beta, hint_fwd_pd, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for an eltwise backward
         /// propagation primitive from a C API primitive descriptor that must
@@ -7717,7 +7743,7 @@ struct eltwise_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::eltwise,
-                    dnnl::prop_kind::backward_data) {}
+                      dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -7848,8 +7874,8 @@ struct softmax_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::softmax,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -7941,7 +7967,7 @@ struct softmax_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::softmax,
-                    dnnl::prop_kind::backward_data) {}
+                      dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc()const
         memory::desc dst_desc() const { return base::dst_desc(0); }
@@ -8062,9 +8088,9 @@ struct batch_normalization_forward : public primitive {
         ///     forward propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd,
-                    dnnl::primitive::kind::batch_normalization,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::primitive::kind::batch_normalization,
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -8193,9 +8219,9 @@ struct batch_normalization_backward : public primitive {
         ///     backward propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd,
-                    dnnl::primitive::kind::batch_normalization,
-                    dnnl::prop_kind::backward, dnnl::prop_kind::backward_data) {
-        }
+                      dnnl::primitive::kind::batch_normalization,
+                      dnnl::prop_kind::backward,
+                      dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -8341,9 +8367,9 @@ struct group_normalization_forward : public primitive {
         ///     forward propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd,
-                    dnnl::primitive::kind::group_normalization,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::primitive::kind::group_normalization,
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -8476,9 +8502,9 @@ struct group_normalization_backward : public primitive {
         ///     backward propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd,
-                    dnnl::primitive::kind::group_normalization,
-                    dnnl::prop_kind::backward, dnnl::prop_kind::backward_data) {
-        }
+                      dnnl::primitive::kind::group_normalization,
+                      dnnl::prop_kind::backward,
+                      dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -8601,8 +8627,8 @@ struct layer_normalization_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, src_desc, dst_desc,
-                    &stat_desc, memory::data_type::f32, epsilon, flags, attr,
-                    allow_empty) {}
+                      &stat_desc, memory::data_type::f32, epsilon, flags, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for a layer normalization forward
         /// propagation primitive.
@@ -8628,8 +8654,8 @@ struct layer_normalization_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, src_desc, dst_desc, nullptr,
-                    memory::data_type::f32, epsilon, flags, attr, allow_empty) {
-        }
+                      memory::data_type::f32, epsilon, flags, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for a layer normalization forward
         /// propagation primitive with a user-provided data type for the scale
@@ -8662,8 +8688,8 @@ struct layer_normalization_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, src_desc, dst_desc,
-                    &stat_desc, scale_shift_data_type, epsilon, flags, attr,
-                    allow_empty) {}
+                      &stat_desc, scale_shift_data_type, epsilon, flags, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for a layer normalization forward
         /// propagation primitive with a user-provided data type for the scale
@@ -8694,7 +8720,8 @@ struct layer_normalization_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, src_desc, dst_desc, nullptr,
-                    scale_shift_data_type, epsilon, flags, attr, allow_empty) {}
+                      scale_shift_data_type, epsilon, flags, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for a layer normalization
         /// forward propagation primitive from a C API primitive descriptor
@@ -8704,9 +8731,9 @@ struct layer_normalization_forward : public primitive {
         ///     forward propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd,
-                    dnnl::primitive::kind::layer_normalization,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::primitive::kind::layer_normalization,
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -8836,9 +8863,9 @@ struct layer_normalization_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, diff_src_desc, diff_dst_desc,
-                    src_desc, &stat_desc, memory::data_type::f32,
-                    memory::data_type::f32, epsilon, flags, hint_fwd_pd, attr,
-                    allow_empty) {}
+                      src_desc, &stat_desc, memory::data_type::f32,
+                      memory::data_type::f32, epsilon, flags, hint_fwd_pd, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for a layer normalization backward
         /// propagation primitive.
@@ -8870,9 +8897,9 @@ struct layer_normalization_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, diff_src_desc, diff_dst_desc,
-                    src_desc, nullptr, memory::data_type::f32,
-                    memory::data_type::f32, epsilon, flags, hint_fwd_pd, attr,
-                    allow_empty) {}
+                      src_desc, nullptr, memory::data_type::f32,
+                      memory::data_type::f32, epsilon, flags, hint_fwd_pd, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for a layer normalization backward
         /// propagation primitive with a user-provided data type for the scale
@@ -8915,9 +8942,9 @@ struct layer_normalization_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, diff_src_desc, diff_dst_desc,
-                    src_desc, &stat_desc, diff_scale_shift_data_type,
-                    scale_shift_data_type, epsilon, flags, hint_fwd_pd, attr,
-                    allow_empty) {}
+                      src_desc, &stat_desc, diff_scale_shift_data_type,
+                      scale_shift_data_type, epsilon, flags, hint_fwd_pd, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for a layer normalization backward
         /// propagation primitive with a user-provided data type for the scale
@@ -8958,9 +8985,9 @@ struct layer_normalization_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, diff_src_desc, diff_dst_desc,
-                    src_desc, nullptr, diff_scale_shift_data_type,
-                    scale_shift_data_type, epsilon, flags, hint_fwd_pd, attr,
-                    allow_empty) {}
+                      src_desc, nullptr, diff_scale_shift_data_type,
+                      scale_shift_data_type, epsilon, flags, hint_fwd_pd, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for a layer normalization
         /// backward propagation primitive from a C API primitive descriptor
@@ -8970,9 +8997,9 @@ struct layer_normalization_backward : public primitive {
         ///     backward propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd,
-                    dnnl::primitive::kind::layer_normalization,
-                    dnnl::prop_kind::backward, dnnl::prop_kind::backward_data) {
-        }
+                      dnnl::primitive::kind::layer_normalization,
+                      dnnl::prop_kind::backward,
+                      dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -9112,7 +9139,7 @@ struct inner_product_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, src_desc, weights_desc,
-                    &bias_desc, dst_desc, attr, allow_empty) {}
+                      &bias_desc, dst_desc, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an inner product forward
         /// propagation primitive.
@@ -9140,7 +9167,7 @@ struct inner_product_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, src_desc, weights_desc,
-                    nullptr, dst_desc, attr, allow_empty) {}
+                      nullptr, dst_desc, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an inner product forward
         /// propagation primitive from a C API primitive descriptor that must
@@ -9150,8 +9177,8 @@ struct inner_product_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::inner_product,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -9268,7 +9295,7 @@ struct inner_product_backward_data : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::inner_product,
-                    dnnl::prop_kind::backward_data) {}
+                      dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::diff_src_desc()const
         memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
@@ -9337,8 +9364,8 @@ struct inner_product_backward_weights : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, src_desc, diff_weights_desc,
-                    &diff_bias_desc, diff_dst_desc, hint_fwd_pd, attr,
-                    allow_empty) {}
+                      &diff_bias_desc, diff_dst_desc, hint_fwd_pd, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for an inner product weights
         /// update primitive.
@@ -9367,7 +9394,7 @@ struct inner_product_backward_weights : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, src_desc, diff_weights_desc, nullptr,
-                    diff_dst_desc, hint_fwd_pd, attr, allow_empty) {}
+                      diff_dst_desc, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an inner product weights
         /// update primitive from a C API primitive descriptor that must
@@ -9377,7 +9404,7 @@ struct inner_product_backward_weights : public primitive {
         ///     gradient primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::inner_product,
-                    dnnl::prop_kind::backward_weights) {}
+                      dnnl::prop_kind::backward_weights) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -10020,11 +10047,11 @@ struct vanilla_rnn_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_rnn,
-                    aprop_kind, activation, direction, src_layer_desc,
-                    src_iter_desc, nullptr, nullptr, weights_layer_desc,
-                    weights_iter_desc, nullptr, nullptr, bias_desc,
-                    dst_layer_desc, dst_iter_desc, nullptr, rnn_flags::undef,
-                    0.0f, 0.0f, attr, allow_empty) {}
+                      aprop_kind, activation, direction, src_layer_desc,
+                      src_iter_desc, nullptr, nullptr, weights_layer_desc,
+                      weights_iter_desc, nullptr, nullptr, bias_desc,
+                      dst_layer_desc, dst_iter_desc, nullptr, rnn_flags::undef,
+                      0.0f, 0.0f, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a vanilla RNN forward
         ///     propagation primitive with alpha parameter.
@@ -10083,11 +10110,11 @@ struct vanilla_rnn_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_rnn,
-                    aprop_kind, activation, direction, src_layer_desc,
-                    src_iter_desc, nullptr, nullptr, weights_layer_desc,
-                    weights_iter_desc, nullptr, nullptr, bias_desc,
-                    dst_layer_desc, dst_iter_desc, nullptr, rnn_flags::undef,
-                    alpha, 0.0f, attr, allow_empty) {}
+                      aprop_kind, activation, direction, src_layer_desc,
+                      src_iter_desc, nullptr, nullptr, weights_layer_desc,
+                      weights_iter_desc, nullptr, nullptr, bias_desc,
+                      dst_layer_desc, dst_iter_desc, nullptr, rnn_flags::undef,
+                      alpha, 0.0f, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a vanilla RNN forward
         /// propagation primitive from a C API primitive descriptor that must
@@ -10097,8 +10124,8 @@ struct vanilla_rnn_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference,
-                    dnnl::algorithm::vanilla_rnn) {}
+                      dnnl::prop_kind::forward_inference,
+                      dnnl::algorithm::vanilla_rnn) {}
 
         /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
         memory::desc src_layer_desc() const {
@@ -10258,15 +10285,15 @@ struct vanilla_rnn_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_rnn,
-                    aprop_kind, activation, direction, src_layer_desc,
-                    src_iter_desc, nullptr, nullptr, weights_layer_desc,
-                    weights_iter_desc, nullptr, nullptr, bias_desc,
-                    dst_layer_desc, dst_iter_desc, nullptr, diff_src_layer_desc,
-                    diff_src_iter_desc, nullptr, nullptr,
-                    diff_weights_layer_desc, diff_weights_iter_desc, nullptr,
-                    nullptr, diff_bias_desc, diff_dst_layer_desc,
-                    diff_dst_iter_desc, nullptr, rnn_flags::undef, 0.0f, 0.0f,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      aprop_kind, activation, direction, src_layer_desc,
+                      src_iter_desc, nullptr, nullptr, weights_layer_desc,
+                      weights_iter_desc, nullptr, nullptr, bias_desc,
+                      dst_layer_desc, dst_iter_desc, nullptr,
+                      diff_src_layer_desc, diff_src_iter_desc, nullptr, nullptr,
+                      diff_weights_layer_desc, diff_weights_iter_desc, nullptr,
+                      nullptr, diff_bias_desc, diff_dst_layer_desc,
+                      diff_dst_iter_desc, nullptr, rnn_flags::undef, 0.0f, 0.0f,
+                      hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a vanilla RNN backward
         ///     propagation primitive with an alpha parameter.
@@ -10348,15 +10375,15 @@ struct vanilla_rnn_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_rnn,
-                    aprop_kind, activation, direction, src_layer_desc,
-                    src_iter_desc, nullptr, nullptr, weights_layer_desc,
-                    weights_iter_desc, nullptr, nullptr, bias_desc,
-                    dst_layer_desc, dst_iter_desc, nullptr, diff_src_layer_desc,
-                    diff_src_iter_desc, nullptr, nullptr,
-                    diff_weights_layer_desc, diff_weights_iter_desc, nullptr,
-                    nullptr, diff_bias_desc, diff_dst_layer_desc,
-                    diff_dst_iter_desc, nullptr, rnn_flags::undef, alpha, 0.0f,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      aprop_kind, activation, direction, src_layer_desc,
+                      src_iter_desc, nullptr, nullptr, weights_layer_desc,
+                      weights_iter_desc, nullptr, nullptr, bias_desc,
+                      dst_layer_desc, dst_iter_desc, nullptr,
+                      diff_src_layer_desc, diff_src_iter_desc, nullptr, nullptr,
+                      diff_weights_layer_desc, diff_weights_iter_desc, nullptr,
+                      nullptr, diff_bias_desc, diff_dst_layer_desc,
+                      diff_dst_iter_desc, nullptr, rnn_flags::undef, alpha,
+                      0.0f, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a vanilla RNN backward
         /// propagation primitive from a C API primitive descriptor that must
@@ -10366,7 +10393,7 @@ struct vanilla_rnn_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::backward,
-                    dnnl::algorithm::vanilla_rnn) {}
+                      dnnl::algorithm::vanilla_rnn) {}
 
         /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
         memory::desc src_layer_desc() const {
@@ -10553,12 +10580,13 @@ struct lstm_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_lstm,
-                    aprop_kind, algorithm::undef, direction, src_layer_desc,
-                    src_iter_desc, &src_iter_c_desc, nullptr,
-                    weights_layer_desc, weights_iter_desc,
-                    &weights_peephole_desc, &weights_projection_desc, bias_desc,
-                    dst_layer_desc, dst_iter_desc, &dst_iter_c_desc,
-                    rnn_flags::undef, 0.0f, 0.0f, attr, allow_empty) {}
+                      aprop_kind, algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, &src_iter_c_desc, nullptr,
+                      weights_layer_desc, weights_iter_desc,
+                      &weights_peephole_desc, &weights_projection_desc,
+                      bias_desc, dst_layer_desc, dst_iter_desc,
+                      &dst_iter_c_desc, rnn_flags::undef, 0.0f, 0.0f, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for an LSTM (with or without
         ///     peephole) forward propagation primitive.
@@ -10621,12 +10649,12 @@ struct lstm_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_lstm,
-                    aprop_kind, algorithm::undef, direction, src_layer_desc,
-                    src_iter_desc, &src_iter_c_desc, nullptr,
-                    weights_layer_desc, weights_iter_desc,
-                    &weights_peephole_desc, nullptr, bias_desc, dst_layer_desc,
-                    dst_iter_desc, &dst_iter_c_desc, rnn_flags::undef, 0.0f,
-                    0.0f, attr, allow_empty) {}
+                      aprop_kind, algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, &src_iter_c_desc, nullptr,
+                      weights_layer_desc, weights_iter_desc,
+                      &weights_peephole_desc, nullptr, bias_desc,
+                      dst_layer_desc, dst_iter_desc, &dst_iter_c_desc,
+                      rnn_flags::undef, 0.0f, 0.0f, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an LSTM forward propagation
         ///     primitive.
@@ -10684,11 +10712,12 @@ struct lstm_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_lstm,
-                    aprop_kind, algorithm::undef, direction, src_layer_desc,
-                    src_iter_desc, &src_iter_c_desc, nullptr,
-                    weights_layer_desc, weights_iter_desc, nullptr, nullptr,
-                    bias_desc, dst_layer_desc, dst_iter_desc, &dst_iter_c_desc,
-                    rnn_flags::undef, 0.0f, 0.0f, attr, allow_empty) {}
+                      aprop_kind, algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, &src_iter_c_desc, nullptr,
+                      weights_layer_desc, weights_iter_desc, nullptr, nullptr,
+                      bias_desc, dst_layer_desc, dst_iter_desc,
+                      &dst_iter_c_desc, rnn_flags::undef, 0.0f, 0.0f, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for an LSTM forward propagation
         /// primitive from a C API primitive descriptor that must have a
@@ -10698,8 +10727,8 @@ struct lstm_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference,
-                    dnnl::algorithm::vanilla_lstm) {}
+                      dnnl::prop_kind::forward_inference,
+                      dnnl::algorithm::vanilla_lstm) {}
 
         /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
         memory::desc src_layer_desc() const {
@@ -10900,18 +10929,18 @@ struct lstm_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_lstm,
-                    aprop_kind, algorithm::undef, direction, src_layer_desc,
-                    src_iter_desc, &src_iter_c_desc, nullptr,
-                    weights_layer_desc, weights_iter_desc,
-                    &weights_peephole_desc, &weights_projection_desc, bias_desc,
-                    dst_layer_desc, dst_iter_desc, &dst_iter_c_desc,
-                    diff_src_layer_desc, diff_src_iter_desc,
-                    &diff_src_iter_c_desc, nullptr, diff_weights_layer_desc,
-                    diff_weights_iter_desc, &diff_weights_peephole_desc,
-                    &diff_weights_projection_desc, diff_bias_desc,
-                    diff_dst_layer_desc, diff_dst_iter_desc,
-                    &diff_dst_iter_c_desc, rnn_flags::undef, 0.0f, 0.0f,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      aprop_kind, algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, &src_iter_c_desc, nullptr,
+                      weights_layer_desc, weights_iter_desc,
+                      &weights_peephole_desc, &weights_projection_desc,
+                      bias_desc, dst_layer_desc, dst_iter_desc,
+                      &dst_iter_c_desc, diff_src_layer_desc, diff_src_iter_desc,
+                      &diff_src_iter_c_desc, nullptr, diff_weights_layer_desc,
+                      diff_weights_iter_desc, &diff_weights_peephole_desc,
+                      &diff_weights_projection_desc, diff_bias_desc,
+                      diff_dst_layer_desc, diff_dst_iter_desc,
+                      &diff_dst_iter_c_desc, rnn_flags::undef, 0.0f, 0.0f,
+                      hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs an LSTM (with or without peephole) primitive descriptor
         ///     for backward propagation using @p prop_kind, @p direction,
@@ -11011,17 +11040,18 @@ struct lstm_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_lstm,
-                    aprop_kind, algorithm::undef, direction, src_layer_desc,
-                    src_iter_desc, &src_iter_c_desc, nullptr,
-                    weights_layer_desc, weights_iter_desc,
-                    &weights_peephole_desc, nullptr, bias_desc, dst_layer_desc,
-                    dst_iter_desc, &dst_iter_c_desc, diff_src_layer_desc,
-                    diff_src_iter_desc, &diff_src_iter_c_desc, nullptr,
-                    diff_weights_layer_desc, diff_weights_iter_desc,
-                    &diff_weights_peephole_desc, nullptr, diff_bias_desc,
-                    diff_dst_layer_desc, diff_dst_iter_desc,
-                    &diff_dst_iter_c_desc, rnn_flags::undef, 0.0f, 0.0f,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      aprop_kind, algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, &src_iter_c_desc, nullptr,
+                      weights_layer_desc, weights_iter_desc,
+                      &weights_peephole_desc, nullptr, bias_desc,
+                      dst_layer_desc, dst_iter_desc, &dst_iter_c_desc,
+                      diff_src_layer_desc, diff_src_iter_desc,
+                      &diff_src_iter_c_desc, nullptr, diff_weights_layer_desc,
+                      diff_weights_iter_desc, &diff_weights_peephole_desc,
+                      nullptr, diff_bias_desc, diff_dst_layer_desc,
+                      diff_dst_iter_desc, &diff_dst_iter_c_desc,
+                      rnn_flags::undef, 0.0f, 0.0f, hint_fwd_pd, attr,
+                      allow_empty) {}
 
         /// Constructs an LSTM primitive descriptor for backward propagation
         ///     using @p prop_kind, @p direction, and memory descriptors.
@@ -11110,16 +11140,16 @@ struct lstm_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_lstm,
-                    aprop_kind, algorithm::undef, direction, src_layer_desc,
-                    src_iter_desc, &src_iter_c_desc, nullptr,
-                    weights_layer_desc, weights_iter_desc, nullptr, nullptr,
-                    bias_desc, dst_layer_desc, dst_iter_desc, &dst_iter_c_desc,
-                    diff_src_layer_desc, diff_src_iter_desc,
-                    &diff_src_iter_c_desc, nullptr, diff_weights_layer_desc,
-                    diff_weights_iter_desc, nullptr, nullptr, diff_bias_desc,
-                    diff_dst_layer_desc, diff_dst_iter_desc,
-                    &diff_dst_iter_c_desc, rnn_flags::undef, 0.0f, 0.0f,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      aprop_kind, algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, &src_iter_c_desc, nullptr,
+                      weights_layer_desc, weights_iter_desc, nullptr, nullptr,
+                      bias_desc, dst_layer_desc, dst_iter_desc,
+                      &dst_iter_c_desc, diff_src_layer_desc, diff_src_iter_desc,
+                      &diff_src_iter_c_desc, nullptr, diff_weights_layer_desc,
+                      diff_weights_iter_desc, nullptr, nullptr, diff_bias_desc,
+                      diff_dst_layer_desc, diff_dst_iter_desc,
+                      &diff_dst_iter_c_desc, rnn_flags::undef, 0.0f, 0.0f,
+                      hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an LSTM backward propagation
         /// primitive from a C API primitive descriptor that must have a
@@ -11129,7 +11159,7 @@ struct lstm_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::backward,
-                    dnnl::algorithm::vanilla_lstm) {}
+                      dnnl::algorithm::vanilla_lstm) {}
 
         /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
         memory::desc src_layer_desc() const {
@@ -11324,11 +11354,11 @@ struct gru_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_gru,
-                    aprop_kind, algorithm::undef, direction, src_layer_desc,
-                    src_iter_desc, nullptr, nullptr, weights_layer_desc,
-                    weights_iter_desc, nullptr, nullptr, bias_desc,
-                    dst_layer_desc, dst_iter_desc, nullptr, rnn_flags::undef,
-                    0.0f, 0.0f, attr, allow_empty) {}
+                      aprop_kind, algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, nullptr, nullptr, weights_layer_desc,
+                      weights_iter_desc, nullptr, nullptr, bias_desc,
+                      dst_layer_desc, dst_iter_desc, nullptr, rnn_flags::undef,
+                      0.0f, 0.0f, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a GRU forward propagation
         /// primitive from a C API primitive descriptor that must have a
@@ -11338,8 +11368,8 @@ struct gru_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference,
-                    dnnl::algorithm::vanilla_gru) {}
+                      dnnl::prop_kind::forward_inference,
+                      dnnl::algorithm::vanilla_gru) {}
 
         /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
         memory::desc src_layer_desc() const {
@@ -11482,15 +11512,15 @@ struct gru_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_gru,
-                    aprop_kind, algorithm::undef, direction, src_layer_desc,
-                    src_iter_desc, nullptr, nullptr, weights_layer_desc,
-                    weights_iter_desc, nullptr, nullptr, bias_desc,
-                    dst_layer_desc, dst_iter_desc, nullptr, diff_src_layer_desc,
-                    diff_src_iter_desc, nullptr, nullptr,
-                    diff_weights_layer_desc, diff_weights_iter_desc, nullptr,
-                    nullptr, diff_bias_desc, diff_dst_layer_desc,
-                    diff_dst_iter_desc, nullptr, rnn_flags::undef, 0.0f, 0.0f,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      aprop_kind, algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, nullptr, nullptr, weights_layer_desc,
+                      weights_iter_desc, nullptr, nullptr, bias_desc,
+                      dst_layer_desc, dst_iter_desc, nullptr,
+                      diff_src_layer_desc, diff_src_iter_desc, nullptr, nullptr,
+                      diff_weights_layer_desc, diff_weights_iter_desc, nullptr,
+                      nullptr, diff_bias_desc, diff_dst_layer_desc,
+                      diff_dst_iter_desc, nullptr, rnn_flags::undef, 0.0f, 0.0f,
+                      hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a GRU backward propagation
         /// primitive from a C API primitive descriptor that must have a
@@ -11500,7 +11530,7 @@ struct gru_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::backward,
-                    dnnl::algorithm::vanilla_gru) {}
+                      dnnl::algorithm::vanilla_gru) {}
 
         /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
         memory::desc src_layer_desc() const {
@@ -11656,10 +11686,11 @@ struct lbr_gru_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::lbr_gru, aprop_kind,
-                    algorithm::undef, direction, src_layer_desc, src_iter_desc,
-                    nullptr, nullptr, weights_layer_desc, weights_iter_desc,
-                    nullptr, nullptr, bias_desc, dst_layer_desc, dst_iter_desc,
-                    nullptr, rnn_flags::undef, 0.0f, 0.0f, attr, allow_empty) {}
+                      algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, nullptr, nullptr, weights_layer_desc,
+                      weights_iter_desc, nullptr, nullptr, bias_desc,
+                      dst_layer_desc, dst_iter_desc, nullptr, rnn_flags::undef,
+                      0.0f, 0.0f, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a LBR GRU forward propagation
         /// primitive from a C API primitive descriptor that must have a
@@ -11669,8 +11700,8 @@ struct lbr_gru_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference,
-                    dnnl::algorithm::lbr_gru) {}
+                      dnnl::prop_kind::forward_inference,
+                      dnnl::algorithm::lbr_gru) {}
 
         /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
         memory::desc src_layer_desc() const {
@@ -11813,14 +11844,15 @@ struct lbr_gru_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::lbr_gru, aprop_kind,
-                    algorithm::undef, direction, src_layer_desc, src_iter_desc,
-                    nullptr, nullptr, weights_layer_desc, weights_iter_desc,
-                    nullptr, nullptr, bias_desc, dst_layer_desc, dst_iter_desc,
-                    nullptr, diff_src_layer_desc, diff_src_iter_desc, nullptr,
-                    nullptr, diff_weights_layer_desc, diff_weights_iter_desc,
-                    nullptr, nullptr, diff_bias_desc, diff_dst_layer_desc,
-                    diff_dst_iter_desc, nullptr, rnn_flags::undef, 0.0f, 0.0f,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, nullptr, nullptr, weights_layer_desc,
+                      weights_iter_desc, nullptr, nullptr, bias_desc,
+                      dst_layer_desc, dst_iter_desc, nullptr,
+                      diff_src_layer_desc, diff_src_iter_desc, nullptr, nullptr,
+                      diff_weights_layer_desc, diff_weights_iter_desc, nullptr,
+                      nullptr, diff_bias_desc, diff_dst_layer_desc,
+                      diff_dst_iter_desc, nullptr, rnn_flags::undef, 0.0f, 0.0f,
+                      hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a LBR GRU backward propagation
         /// primitive from a C API primitive descriptor that must have a
@@ -11829,8 +11861,8 @@ struct lbr_gru_backward : public primitive {
         /// @param pd C API primitive descriptor for a LBR GRU backward
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
-            : rnn_primitive_desc_base(
-                    pd, dnnl::prop_kind::backward, dnnl::algorithm::lbr_gru) {}
+            : rnn_primitive_desc_base(pd, dnnl::prop_kind::backward,
+                      dnnl::algorithm::lbr_gru) {}
 
         /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
         memory::desc src_layer_desc() const {
@@ -11988,11 +12020,11 @@ struct augru_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_augru,
-                    aprop_kind, algorithm::undef, direction, src_layer_desc,
-                    src_iter_desc, nullptr, &attention_desc, weights_layer_desc,
-                    weights_iter_desc, nullptr, nullptr, bias_desc,
-                    dst_layer_desc, dst_iter_desc, nullptr, rnn_flags::undef,
-                    0.0f, 0.0f, attr, allow_empty) {}
+                      aprop_kind, algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, nullptr, &attention_desc,
+                      weights_layer_desc, weights_iter_desc, nullptr, nullptr,
+                      bias_desc, dst_layer_desc, dst_iter_desc, nullptr,
+                      rnn_flags::undef, 0.0f, 0.0f, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an AUGRU forward propagation
         /// primitive from a C API primitive descriptor that must have a
@@ -12002,8 +12034,8 @@ struct augru_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference,
-                    dnnl::algorithm::vanilla_augru) {}
+                      dnnl::prop_kind::forward_inference,
+                      dnnl::algorithm::vanilla_augru) {}
 
         /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
         memory::desc src_layer_desc() const {
@@ -12157,15 +12189,16 @@ struct augru_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::vanilla_augru,
-                    aprop_kind, algorithm::undef, direction, src_layer_desc,
-                    src_iter_desc, nullptr, &attention_desc, weights_layer_desc,
-                    weights_iter_desc, nullptr, nullptr, bias_desc,
-                    dst_layer_desc, dst_iter_desc, nullptr, diff_src_layer_desc,
-                    diff_src_iter_desc, nullptr, &diff_attention_desc,
-                    diff_weights_layer_desc, diff_weights_iter_desc, nullptr,
-                    nullptr, diff_bias_desc, diff_dst_layer_desc,
-                    diff_dst_iter_desc, nullptr, rnn_flags::undef, 0.0f, 0.0f,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      aprop_kind, algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, nullptr, &attention_desc,
+                      weights_layer_desc, weights_iter_desc, nullptr, nullptr,
+                      bias_desc, dst_layer_desc, dst_iter_desc, nullptr,
+                      diff_src_layer_desc, diff_src_iter_desc, nullptr,
+                      &diff_attention_desc, diff_weights_layer_desc,
+                      diff_weights_iter_desc, nullptr, nullptr, diff_bias_desc,
+                      diff_dst_layer_desc, diff_dst_iter_desc, nullptr,
+                      rnn_flags::undef, 0.0f, 0.0f, hint_fwd_pd, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for an AUGRU backward propagation
         /// primitive from a C API primitive descriptor that must have a
@@ -12175,7 +12208,7 @@ struct augru_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::backward,
-                    dnnl::algorithm::vanilla_augru) {}
+                      dnnl::algorithm::vanilla_augru) {}
 
         /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
         memory::desc src_layer_desc() const {
@@ -12345,11 +12378,11 @@ struct lbr_augru_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::lbr_augru, aprop_kind,
-                    algorithm::undef, direction, src_layer_desc, src_iter_desc,
-                    nullptr, &attention_desc, weights_layer_desc,
-                    weights_iter_desc, nullptr, nullptr, bias_desc,
-                    dst_layer_desc, dst_iter_desc, nullptr, rnn_flags::undef,
-                    0.0f, 0.0f, attr, allow_empty) {}
+                      algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, nullptr, &attention_desc,
+                      weights_layer_desc, weights_iter_desc, nullptr, nullptr,
+                      bias_desc, dst_layer_desc, dst_iter_desc, nullptr,
+                      rnn_flags::undef, 0.0f, 0.0f, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for an LBR AUGRU forward propagation
         /// primitive from a C API primitive descriptor that must have a
@@ -12359,8 +12392,8 @@ struct lbr_augru_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference,
-                    dnnl::algorithm::lbr_augru) {}
+                      dnnl::prop_kind::forward_inference,
+                      dnnl::algorithm::lbr_augru) {}
 
         /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
         memory::desc src_layer_desc() const {
@@ -12513,15 +12546,16 @@ struct lbr_augru_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : rnn_primitive_desc_base(aengine, algorithm::lbr_augru, aprop_kind,
-                    algorithm::undef, direction, src_layer_desc, src_iter_desc,
-                    nullptr, &attention_desc, weights_layer_desc,
-                    weights_iter_desc, nullptr, nullptr, bias_desc,
-                    dst_layer_desc, dst_iter_desc, nullptr, diff_src_layer_desc,
-                    diff_src_iter_desc, nullptr, &diff_attention_desc,
-                    diff_weights_layer_desc, diff_weights_iter_desc, nullptr,
-                    nullptr, diff_bias_desc, diff_dst_layer_desc,
-                    diff_dst_iter_desc, nullptr, rnn_flags::undef, 0.0f, 0.0f,
-                    hint_fwd_pd, attr, allow_empty) {}
+                      algorithm::undef, direction, src_layer_desc,
+                      src_iter_desc, nullptr, &attention_desc,
+                      weights_layer_desc, weights_iter_desc, nullptr, nullptr,
+                      bias_desc, dst_layer_desc, dst_iter_desc, nullptr,
+                      diff_src_layer_desc, diff_src_iter_desc, nullptr,
+                      &diff_attention_desc, diff_weights_layer_desc,
+                      diff_weights_iter_desc, nullptr, nullptr, diff_bias_desc,
+                      diff_dst_layer_desc, diff_dst_iter_desc, nullptr,
+                      rnn_flags::undef, 0.0f, 0.0f, hint_fwd_pd, attr,
+                      allow_empty) {}
 
         /// Constructs a primitive descriptor for an LBR AUGRU backward
         /// propagation primitive from a C API primitive descriptor that must
@@ -12531,7 +12565,7 @@ struct lbr_augru_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::backward,
-                    dnnl::algorithm::lbr_augru) {}
+                      dnnl::algorithm::lbr_augru) {}
 
         /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc()const
         memory::desc src_layer_desc() const {
@@ -12702,8 +12736,8 @@ struct shuffle_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::shuffle,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -12791,7 +12825,7 @@ struct shuffle_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::shuffle,
-                    dnnl::prop_kind::backward_data) {}
+                      dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::diff_src_desc()const
         memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
@@ -12992,7 +13026,7 @@ struct matmul : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, src_desc, weights_desc, nullptr, dst_desc,
-                    attr, allow_empty) {}
+                      attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a matmul primitive with bias.
         ///
@@ -13013,7 +13047,7 @@ struct matmul : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, src_desc, weights_desc, &bias_desc,
-                    dst_desc, attr, allow_empty) {}
+                      dst_desc, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a matmul primitive from a C
         /// API primitive descriptor that must have a matching kind.
@@ -13121,7 +13155,7 @@ struct resampling_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, nullptr, src_desc,
-                    &dst_desc, attr, allow_empty) {}
+                      &dst_desc, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a resampling forward
         ///     propagation primitive using source memory descriptor and
@@ -13148,7 +13182,7 @@ struct resampling_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, &factors,
-                    src_desc, nullptr, attr, allow_empty) {}
+                      src_desc, nullptr, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a resampling forward
         ///     propagation primitive.
@@ -13179,7 +13213,7 @@ struct resampling_forward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aprop_kind, aalgorithm, &factors,
-                    src_desc, &dst_desc, attr, allow_empty) {}
+                      src_desc, &dst_desc, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a resampling forward
         /// propagation primitive from a C API primitive descriptor that must
@@ -13189,8 +13223,8 @@ struct resampling_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::resampling,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -13275,7 +13309,7 @@ struct resampling_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, nullptr, diff_src_desc,
-                    diff_dst_desc, hint_fwd_pd, attr, allow_empty) {}
+                      diff_dst_desc, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for resampling backward
         ///     propagation primitive.
@@ -13304,7 +13338,7 @@ struct resampling_backward : public primitive {
                 const primitive_attr &attr = default_attr(),
                 bool allow_empty = false)
             : primitive_desc(aengine, aalgorithm, &factors, diff_src_desc,
-                    diff_dst_desc, hint_fwd_pd, attr, allow_empty) {}
+                      diff_dst_desc, hint_fwd_pd, attr, allow_empty) {}
 
         /// Constructs a primitive descriptor for a resampling backward
         /// propagation primitive from a C API primitive descriptor that must
@@ -13314,7 +13348,7 @@ struct resampling_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::resampling,
-                    dnnl::prop_kind::backward_data) {}
+                      dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::diff_src_desc()const
         memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
@@ -13453,8 +13487,8 @@ struct pooling_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::pooling,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -13581,7 +13615,7 @@ struct pooling_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::pooling,
-                    dnnl::prop_kind::backward_data) {}
+                      dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
@@ -13696,8 +13730,8 @@ struct prelu_forward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::prelu,
-                    dnnl::prop_kind::forward_training,
-                    dnnl::prop_kind::forward_inference) {}
+                      dnnl::prop_kind::forward_training,
+                      dnnl::prop_kind::forward_inference) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }
@@ -13783,7 +13817,7 @@ struct prelu_backward : public primitive {
         ///     propagation primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::prelu,
-                    dnnl::prop_kind::backward) {}
+                      dnnl::prop_kind::backward) {}
 
         /// @copydoc dnnl::primitive_desc_base::src_desc()const
         memory::desc src_desc() const { return base::src_desc(0); }

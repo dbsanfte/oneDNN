@@ -58,6 +58,11 @@ struct params_t {
 
     float default_pp_scales_ = 1.0f;
 
+    // indicates if a softmax post-op should run after standard post-processing
+    bool has_softmax_post_op_ = false;
+    int softmax_axis_ = -1;
+    bool softmax_log_ = false;
+
     // an attribute for post processing kernel
     primitive_attr_t pp_attr_;
 

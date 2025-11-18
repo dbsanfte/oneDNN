@@ -14,11 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <atomic>
 
 #include <assert.h>
 #include <float.h>
 #include <math.h>
+
+#include <vector>
 
 #include "common/c_types_map.hpp"
 #include "common/compiler_workarounds.hpp"
@@ -44,6 +47,41 @@ namespace matmul {
 using namespace data_type;
 
 namespace {
+inline void normalize_softmax_buffer(
+        float *values, float *scratch, dim_t len, bool log_softmax) {
+    if (len <= 0) return;
+
+    float max_val = -FLT_MAX;
+    for (dim_t i = 0; i < len; ++i)
+        max_val = std::max(max_val, values[i]);
+
+    float sum = 0.f;
+    PRAGMA_OMP_SIMD(reduction(+ : sum))
+    for (dim_t i = 0; i < len; ++i) {
+        float shifted = values[i] - max_val;
+        if (log_softmax) {
+            scratch[i] = shifted;
+            sum += std::exp(shifted);
+        } else {
+            float ex = std::exp(shifted);
+            scratch[i] = ex;
+            sum += ex;
+        }
+    }
+
+    if (log_softmax) {
+        const float log_sum = sum > 0.f ? std::log(sum) : 0.f;
+        PRAGMA_OMP_SIMD()
+        for (dim_t i = 0; i < len; ++i)
+            values[i] = scratch[i] - log_sum;
+    } else {
+        const float inv_sum = sum > 0.f ? 1.f / sum : 0.f;
+        PRAGMA_OMP_SIMD()
+        for (dim_t i = 0; i < len; ++i)
+            values[i] = scratch[i] * inv_sum;
+    }
+}
+
 template <typename pd_t>
 bool need_post_processing(const pd_t *pd, float runtime_dst_zero_point = 0.f) {
     return pd->with_bias() || pd->dst_md()->data_type != s32
@@ -52,6 +90,82 @@ bool need_post_processing(const pd_t *pd, float runtime_dst_zero_point = 0.f) {
             || !pd->params().pp_attr_.zero_points_.has_default_values(
                     DNNL_ARG_DST)
             || runtime_dst_zero_point != 0.f;
+}
+
+status_t apply_softmax_post_op(
+        const exec_ctx_t &ctx, const gemm_x8s8s32x_matmul_t::pd_t *pd) {
+    const auto &params = pd->params();
+    if (!params.has_softmax_post_op_) return status::success;
+
+    auto dst_ptr = CTX_OUT_MEM(float *, DNNL_ARG_DST);
+    if (!dst_ptr) return status::runtime_error;
+
+    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd->dst_md());
+    if (dst_d.data_type() != data_type::f32) return status::unimplemented;
+
+    const int ndims = dst_d.ndims();
+    int axis = params.softmax_axis_;
+    if (axis < 0) axis += ndims;
+    const dim_t axis_dim = dst_d.dims()[axis];
+    if (axis_dim <= 0) return status::success;
+
+    const size_t total_elems = dst_d.nelems();
+    if (total_elems == 0) return status::success;
+
+    const auto &strides = dst_d.blocking_desc().strides;
+    const int nthr = dnnl_get_max_threads();
+
+    const bool axis_is_last = axis == ndims - 1;
+    const bool axis_is_column = (axis == 0 && ndims == 2);
+    if (!axis_is_last && !axis_is_column) return status::unimplemented;
+
+    if (axis_is_last) {
+        const size_t outer = total_elems / axis_dim;
+        const dim_t ld = (axis == 0) ? axis_dim : strides[axis - 1];
+
+        parallel(nthr, [&](int ithr, int nthr) {
+            size_t start {}, end {};
+            balance211(outer, nthr, ithr, start, end);
+            std::vector<float> raw(axis_dim);
+            std::vector<float> scratch(axis_dim);
+            for (size_t row = start; row < end; ++row) {
+                float *row_ptr = dst_ptr + row * ld;
+                for (dim_t j = 0; j < axis_dim; ++j)
+                    raw[j] = row_ptr[j];
+                normalize_softmax_buffer(raw.data(), scratch.data(), axis_dim,
+                        params.softmax_log_);
+                for (dim_t j = 0; j < axis_dim; ++j)
+                    row_ptr[j] = raw[j];
+            }
+        });
+        return status::success;
+    }
+
+    // axis == 0 && ndims == 2 : column-wise softmax
+    const dim_t rows = dst_d.dims()[0];
+    const dim_t cols = dst_d.dims()[1];
+    const dim_t row_stride = strides[0];
+    const dim_t col_stride = strides[1];
+
+    parallel(nthr, [&](int ithr, int nthr) {
+        dim_t start {}, end {};
+        balance211(cols, nthr, ithr, start, end);
+        std::vector<float> raw(rows);
+        std::vector<float> scratch(rows);
+        for (dim_t col = start; col < end; ++col) {
+            float *col_ptr = dst_ptr + col * col_stride;
+            for (dim_t r = 0; r < rows; ++r)
+                raw[r] = col_ptr[r * row_stride];
+
+            normalize_softmax_buffer(
+                    raw.data(), scratch.data(), rows, params.softmax_log_);
+
+            for (dim_t r = 0; r < rows; ++r)
+                col_ptr[r * row_stride] = raw[r];
+        }
+    });
+
+    return status::success;
 }
 } // namespace
 
@@ -144,6 +258,33 @@ status_t gemm_x8s8s32x_matmul_t::pd_t::init(engine_t *engine) {
     CHECK(params_.pp_attr_.copy_from(*attr()));
     params_.pp_attr_.zero_points_.set(DNNL_ARG_SRC, 0);
     params_.pp_attr_.zero_points_.set(DNNL_ARG_WEIGHTS, 0);
+
+    const int softmax_po_index
+            = params_.pp_attr_.post_ops_.find(primitive_kind::softmax);
+    if (softmax_po_index != -1) {
+        const int ndims = dst_md()->ndims;
+        auto &post_ops = params_.pp_attr_.post_ops_;
+        const auto &softmax_desc = post_ops.entry_[softmax_po_index].softmax;
+        int axis = softmax_desc.axis;
+        if (axis < 0) axis += ndims;
+        const bool axis_supported
+                = axis == ndims - 1 || (ndims == 2 && axis == 0);
+        VDISPATCH_MATMUL(axis_supported, VERBOSE_UNSUPPORTED_POSTOP,
+                "softmax post-op currently supports the last dimension or"
+                " column axis (axis 0 in 2D tensors)");
+        VDISPATCH_MATMUL(dst_md()->data_type == data_type::f32,
+                VERBOSE_UNSUPPORTED_POSTOP,
+                "softmax post-op requires f32 destination");
+        VDISPATCH_MATMUL(
+                post_ops.find(primitive_kind::softmax, softmax_po_index + 1)
+                        == -1,
+                VERBOSE_UNSUPPORTED_POSTOP,
+                "multiple softmax post-ops are not supported");
+        params_.has_softmax_post_op_ = true;
+        params_.softmax_axis_ = axis;
+        params_.softmax_log_ = softmax_desc.log;
+        post_ops.entry_.erase(post_ops.entry_.begin() + softmax_po_index);
+    }
 
     params_.gemm_applies_output_scales_ = false;
     params_.gemm_beta_ = 0.f;
@@ -273,12 +414,12 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const bool use_single_gemm_call = pd()->has_runtime_dims_or_strides()
             ? helper.use_single_gemm_call_optimization(po)
             : ((platform::is_ppc64() && ndims == 2)
-                    || params.use_single_gemm_call_optimization_);
+                      || params.use_single_gemm_call_optimization_);
     bool dst_is_acc = params.dst_is_acc_;
     int32_t *acc = dst_is_acc
             ? reinterpret_cast<int32_t *>(dst)
             : ctx.get_scratchpad_grantor().template get<int32_t>(
-                    memory_tracking::names::key_matmul_dst_in_acc_dt);
+                      memory_tracking::names::key_matmul_dst_in_acc_dt);
     // case: dynamic sizes
     bool need_free_acc = false;
     if (acc == nullptr) {
@@ -440,7 +581,7 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                     const size_t dst_logical_off = i_work;
                     const size_t dim1_off = helper.ndims() > 3
                             ? ((cur_b % batch_without_dim0)
-                                    / batch_without_dim01)
+                                      / batch_without_dim01)
                             : cur_m;
                     // offset for case with post-op broadcast_channel
                     const size_t matrix_per_first_batch_off = helper.ndims() > 3
@@ -516,6 +657,11 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             }
         }
     }
+    if (st == status::success) {
+        status_t softmax_status = apply_softmax_post_op(ctx, pd());
+        if (softmax_status != status::success) return softmax_status;
+    }
+
     if (need_free_acc) free(acc);
 
     return st;

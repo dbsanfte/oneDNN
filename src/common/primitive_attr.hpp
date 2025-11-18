@@ -320,6 +320,12 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             int mask;
         };
 
+        struct softmax_t {
+            int axis;
+            int32_t flags;
+            bool log;
+        };
+
         dnnl::impl::primitive_kind_t kind
                 = dnnl::impl::primitive_kind::undefined;
         union {
@@ -328,6 +334,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             depthwise_conv_t depthwise_conv;
             binary_t binary;
             prelu_t prelu;
+            softmax_t softmax;
         };
 
         bool is_eltwise(bool require_scale_one = false) const {
@@ -363,6 +370,10 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
         bool is_prelu() const {
             return kind == dnnl::impl::primitive_kind::prelu;
+        }
+
+        bool is_softmax() const {
+            return kind == dnnl::impl::primitive_kind::softmax;
         }
 
         bool is_like_binary() const { return is_binary() || is_prelu(); }
@@ -415,6 +426,11 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                 case primitive_kind::prelu:
                     ret = prelu.mask == rhs.prelu.mask;
                     break;
+                case primitive_kind::softmax:
+                    ret = softmax.axis == rhs.softmax.axis
+                            && softmax.flags == rhs.softmax.flags
+                            && softmax.log == rhs.softmax.log;
+                    break;
                 default: assert(!"unsupported post_op");
             }
             return ret;
@@ -440,6 +456,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             const dnnl::impl::memory_desc_t *user_src1_desc,
             const dnnl::impl::memory_desc_t *user_src2_desc = nullptr);
     dnnl::impl::status_t append_prelu(int mask);
+    dnnl::impl::status_t append_softmax(int axis, bool log);
 
     dnnl::impl::status_t prepend_binary(dnnl::impl::alg_kind_t alg,
             const dnnl::impl::memory_desc_t *user_src1_desc,

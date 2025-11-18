@@ -959,6 +959,27 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_prelu(
 dnnl_status_t DNNL_API dnnl_post_ops_get_params_prelu(
         const_dnnl_post_ops_t post_ops, int index, int *mask);
 
+/// Appends a softmax post-op.
+///
+/// The kind of this post operation is #dnnl_softmax.
+///
+/// @param post_ops Post-ops.
+/// @param axis Logical axis for softmax computation.
+/// @param is_log Non-zero value selects log-softmax.
+/// @returns #dnnl_success on success and a status describing the error otherwise.
+dnnl_status_t DNNL_API dnnl_post_ops_append_softmax(
+        dnnl_post_ops_t post_ops, int axis, int is_log);
+
+/// Returns the parameters of a softmax post-op.
+///
+/// @param post_ops Post-ops.
+/// @param index Index of the softmax post-op.
+/// @param axis Output logical axis for softmax computation.
+/// @param is_log Output flag where non-zero indicates log-softmax.
+/// @returns #dnnl_success on success and a status describing the error otherwise.
+dnnl_status_t DNNL_API dnnl_post_ops_get_params_softmax(
+        const_dnnl_post_ops_t post_ops, int index, int *axis, int *is_log);
+
 /// @} dnnl_api_attributes
 
 /// @} dnnl_api_primitives
